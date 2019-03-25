@@ -1,0 +1,104 @@
+#include<iostream>
+#include<winsock2.h>
+#include<stdio.h>
+#include <string>
+#include <ws2tcpip.h>
+#include<process.h>
+#include<mutex>
+
+using std::cout;
+using std::endl;
+#pragma comment(lib,"WS2_32")
+#pragma warning(disable:4996)
+
+void receiveT(void* socket)
+{
+	SOCKET rcv = *(SOCKET*)socket;
+	char msg[80];
+	while (true)
+	{
+		if (recv(rcv, msg, 80, 0) != -1)
+		{
+			cout << "Client: " << msg << "\n";
+		}
+	}
+}
+
+void sendT(void* socket)
+{
+	SOCKET snd = *(SOCKET*)socket;
+	char msg[80];
+	while (true)
+	{
+		gets_s(msg);
+		send(snd, msg, 80, 0);
+		
+	}
+}
+
+int main() {
+	WSADATA wsaData;
+	int iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
+	if (iResult != NO_ERROR) {
+		cout << "Errore WSAStartup()" << endl;
+	}
+
+	//Creazione della Socket che si porrà in ascolto di richieste del Client
+	SOCKET m_socket;
+	m_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (m_socket == INVALID_SOCKET) {
+		cout << "Errore socket(): " << WSAGetLastError() << endl;
+		WSACleanup();
+		return 0;
+	}
+	//Effettua la bind sull’indirizzo e porta ora specificati
+	SOCKADDR_IN service;
+	service.sin_family = AF_INET;
+	service.sin_addr.s_addr = inet_addr("127.0.0.1");
+	service.sin_port = htons(4000); //porta
+	if (bind(m_socket, (SOCKADDR*)&service, sizeof(service)) == SOCKET_ERROR) {
+		cout << "Errore bind()" << endl;
+		closesocket(m_socket);
+		return 0;
+	}
+	//La socket si pone in "ascolto" tramite la listen()
+	if (listen(m_socket, 1) == SOCKET_ERROR) {
+		cout << "Errore listen()" << endl;
+	}
+
+	cout << "Aspettando che il client si connetta" << endl;
+
+	//La socket accetta la richiesta di connessione del Client
+	SOCKET AcceptSocket;
+	int sin_size = sizeof(struct sockaddr_in);
+	AcceptSocket = accept(m_socket, (sockaddr *)&service, &sin_size);
+	cout << "Client connesso" << endl;
+
+	char clientHost[NI_MAXHOST];  //clientHost è l'indirizzo IP del client
+	char clientPort[NI_MAXSERV];
+
+	if (getnameinfo((sockaddr*)&service, sizeof(service), clientHost, sizeof(clientHost), clientPort, sizeof(clientPort), NI_NUMERICHOST | NI_NUMERICSERV) != 0)
+	{
+		//Errore
+		cout << "Error!!!" << endl;
+	}
+	else {
+		//Stampa dei indirizzi IP e porte
+		cout << "Indirizzo Ip del Server = " << inet_ntoa(service.sin_addr) << "\n";
+		cout << "Porta del Server = " << htons(4000) << "\n";
+		cout << "Indirizzo Ip del Client = " << clientHost << "\n";
+		cout << "Porta del Client data dal Sistema Operativo = " << clientPort << "\n";
+	}
+	//Scambio di messaggi, la connessione si chiude quando il Client invia un messaggio vuoto al Server
+	HANDLE thReceive = (HANDLE)_beginthread(receiveT, 0, &AcceptSocket);
+	HANDLE thSend = (HANDLE)_beginthread(sendT, 0, &AcceptSocket);
+
+	WaitForSingleObject(thReceive, INFINITE);
+	WaitForSingleObject(thSend, INFINITE);
+
+	//Chiusura della connessione
+	cout << "Chiusa la connessione!" << endl;
+	closesocket(AcceptSocket);
+	closesocket(m_socket);
+	system("Pause");
+}
