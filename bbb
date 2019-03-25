@@ -1,0 +1,74 @@
+#include<iostream>
+#include<winsock.h>
+#include<stdio.h>
+#include <string>
+#include<process.h>
+
+using std::cout;
+using std::endl;
+#pragma comment(lib,"WS2_32")
+void receiveT(void* socket)
+{
+	SOCKET rcv = *(SOCKET*)socket;
+	char msg[80];
+	while (true)
+	{	
+		
+		if (recv(rcv, msg, 80, 0) != -1)
+		{
+			cout << "Server: " << msg << "\n";
+		}
+	}
+}
+void sendT(void* socket)
+{
+	SOCKET snd = *(SOCKET*)socket;
+	char msg[80];
+	while (true)
+	{
+		gets_s(msg);
+		send(snd, msg, 80, 0);
+
+	}
+}
+int main() {
+	// Inizializzazione della libreria Socket 
+	WSADATA wsaData;
+	int iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
+	if (iResult != NO_ERROR) {
+		cout << "Errore WSAStartup()" << endl;
+	}
+
+	//La richiesta di connessione viene effettuata tramite la funzione connect. 
+	SOCKET ConnectSocket;
+	ConnectSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (ConnectSocket == INVALID_SOCKET) {
+		cout << "Errore socket(): " << WSAGetLastError() << endl;
+		WSACleanup();
+		return 0;
+	}
+	SOCKADDR_IN client;
+	client.sin_family = AF_INET;
+	client.sin_addr.s_addr = inet_addr("127.0.0.1");
+	client.sin_port = htons(4000);
+
+	if (connect(ConnectSocket, (SOCKADDR*)&client, sizeof(client)) == SOCKET_ERROR) {
+		cout << "Errore connetc()" << endl;
+		WSACleanup();
+		return 0;
+	}
+
+	cout << "Client connesso al server" << endl;
+	int result = 0;
+	//Scambio di messaggi, la connessione si chiude quando il Client invia un messaggio vuoto al Server
+
+	HANDLE thReceive = (HANDLE)_beginthread(receiveT, 0, &ConnectSocket);
+	HANDLE thSend = (HANDLE)_beginthread(sendT, 0, &ConnectSocket);
+
+	WaitForSingleObject(thReceive, INFINITE);
+	WaitForSingleObject(thSend, INFINITE);
+	//Chiusura della connessione
+	cout << "Chiusa la connessione" << endl;
+	closesocket(ConnectSocket);
+	system("PAUSE");
+}
